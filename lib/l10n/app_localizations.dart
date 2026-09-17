@@ -14169,6 +14169,36 @@ abstract class AppLocalizations {
   /// **'{count, plural, =0{No other listeners} =1{1 other listener} other{{count} other listeners}}'**
   String detailOtherListeners(int count);
 
+  /// No description provided for @seriesUpNext.
+  ///
+  /// In en, this message translates to:
+  /// **'Up next'**
+  String get seriesUpNext;
+
+  /// No description provided for @seriesStatsFinished.
+  ///
+  /// In en, this message translates to:
+  /// **'Finished'**
+  String get seriesStatsFinished;
+
+  /// No description provided for @seriesStatsListened.
+  ///
+  /// In en, this message translates to:
+  /// **'Listened'**
+  String get seriesStatsListened;
+
+  /// No description provided for @seriesStatsLeft.
+  ///
+  /// In en, this message translates to:
+  /// **'Left'**
+  String get seriesStatsLeft;
+
+  /// No description provided for @seriesFinishedOf.
+  ///
+  /// In en, this message translates to:
+  /// **'{done} of {total}'**
+  String seriesFinishedOf(int done, int total);
+
   /// No description provided for @detailSessionsNone.
   ///
   /// In en, this message translates to:

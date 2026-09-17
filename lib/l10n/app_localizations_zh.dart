@@ -8132,6 +8132,23 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get seriesUpNext => 'Up next';
+
+  @override
+  String get seriesStatsFinished => 'Finished';
+
+  @override
+  String get seriesStatsListened => 'Listened';
+
+  @override
+  String get seriesStatsLeft => 'Left';
+
+  @override
+  String seriesFinishedOf(int done, int total) {
+    return '$done of $total';
+  }
+
+  @override
   String get detailSessionsNone => 'No listening sessions yet';
 
   @override

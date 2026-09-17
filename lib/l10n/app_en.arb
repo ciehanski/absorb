@@ -4713,6 +4713,14 @@
   "@detailOtherListeners": {
     "placeholders": { "count": { "type": "int" } }
   },
+  "seriesUpNext": "Up next",
+  "seriesStatsFinished": "Finished",
+  "seriesStatsListened": "Listened",
+  "seriesStatsLeft": "Left",
+  "seriesFinishedOf": "{done} of {total}",
+  "@seriesFinishedOf": {
+    "placeholders": { "done": { "type": "int" }, "total": { "type": "int" } }
+  },
   "detailSessionsNone": "No listening sessions yet",
   "detailSessionsAll": "All {count} sessions",
   "@detailSessionsAll": {
