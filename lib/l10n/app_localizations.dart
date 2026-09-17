@@ -12285,6 +12285,90 @@ abstract class AppLocalizations {
   /// **'Show seconds'**
   String get chapterShowSeconds;
 
+  /// No description provided for @chapterWindowMinutes.
+  ///
+  /// In en, this message translates to:
+  /// **'{minutes} min'**
+  String chapterWindowMinutes(int minutes);
+
+  /// No description provided for @chapterLoopCut.
+  ///
+  /// In en, this message translates to:
+  /// **'Loop the cut'**
+  String get chapterLoopCut;
+
+  /// No description provided for @chapterFindStart.
+  ///
+  /// In en, this message translates to:
+  /// **'Find the start'**
+  String get chapterFindStart;
+
+  /// No description provided for @chapterFindStartListening.
+  ///
+  /// In en, this message translates to:
+  /// **'Listening around the marker'**
+  String get chapterFindStartListening;
+
+  /// No description provided for @chapterFindStartNone.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing here sounds like a chapter start'**
+  String get chapterFindStartNone;
+
+  /// No description provided for @chapterFindStartWider.
+  ///
+  /// In en, this message translates to:
+  /// **'Search wider'**
+  String get chapterFindStartWider;
+
+  /// No description provided for @chapterFindStartCeiling.
+  ///
+  /// In en, this message translates to:
+  /// **'Searched half an hour around the marker. The start is further off than that, or there\'s no chapter announcement to hear.'**
+  String get chapterFindStartCeiling;
+
+  /// No description provided for @chapterFindStartStrong.
+  ///
+  /// In en, this message translates to:
+  /// **'Sounds like this chapter'**
+  String get chapterFindStartStrong;
+
+  /// No description provided for @chapterFindStartMaybe.
+  ///
+  /// In en, this message translates to:
+  /// **'Chapter-like words'**
+  String get chapterFindStartMaybe;
+
+  /// No description provided for @chapterFindStartGap.
+  ///
+  /// In en, this message translates to:
+  /// **'{seconds}s gap'**
+  String chapterFindStartGap(String seconds);
+
+  /// No description provided for @chapterFindStartRange.
+  ///
+  /// In en, this message translates to:
+  /// **'Searched {from} to {to}'**
+  String chapterFindStartRange(String from, String to);
+
+  /// No description provided for @chapterFindStartNeedsModel.
+  ///
+  /// In en, this message translates to:
+  /// **'Turn on transcription in Settings and download a model first'**
+  String get chapterFindStartNeedsModel;
+
+  /// No description provided for @chapterFindStartUseThis.
+  ///
+  /// In en, this message translates to:
+  /// **'Use this'**
+  String get chapterFindStartUseThis;
+
+  /// No description provided for @chapterFindStartTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Title: {title}'**
+  String chapterFindStartTitle(String title);
+
   /// No description provided for @chapterShiftBySeconds.
   ///
   /// In en, this message translates to:
@@ -12296,18 +12380,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Shifts every unlocked chapter. Use a negative value to move them earlier.'**
   String get chapterShiftHint;
-
-  /// No description provided for @chapterBack1Second.
-  ///
-  /// In en, this message translates to:
-  /// **'Back 1 second'**
-  String get chapterBack1Second;
-
-  /// No description provided for @chapterForward1Second.
-  ///
-  /// In en, this message translates to:
-  /// **'Forward 1 second'**
-  String get chapterForward1Second;
 
   /// No description provided for @chapterTitleHint.
   ///
@@ -12330,7 +12402,7 @@ abstract class AppLocalizations {
   /// No description provided for @chapterScrubHint.
   ///
   /// In en, this message translates to:
-  /// **'Scrub to the exact spot, then set'**
+  /// **'Drag or nudge to move the start'**
   String get chapterScrubHint;
 
   /// No description provided for @chapterStartAt.
@@ -12338,18 +12410,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Start at {time}'**
   String chapterStartAt(String time);
-
-  /// No description provided for @chapterSetStartHere.
-  ///
-  /// In en, this message translates to:
-  /// **'Set start here'**
-  String get chapterSetStartHere;
-
-  /// No description provided for @chapterMore.
-  ///
-  /// In en, this message translates to:
-  /// **'More'**
-  String get chapterMore;
 
   /// No description provided for @chapterUnlock.
   ///

@@ -7261,17 +7261,63 @@ class AppLocalizationsDe extends AppLocalizations {
   String get chapterShowSeconds => 'Sekunden anzeigen';
 
   @override
+  String chapterWindowMinutes(int minutes) {
+    return '$minutes min';
+  }
+
+  @override
+  String get chapterLoopCut => 'Loop the cut';
+
+  @override
+  String get chapterFindStart => 'Find the start';
+
+  @override
+  String get chapterFindStartListening => 'Listening around the marker';
+
+  @override
+  String get chapterFindStartNone => 'Nothing here sounds like a chapter start';
+
+  @override
+  String get chapterFindStartWider => 'Search wider';
+
+  @override
+  String get chapterFindStartCeiling =>
+      'Searched half an hour around the marker. The start is further off than that, or there\'s no chapter announcement to hear.';
+
+  @override
+  String get chapterFindStartStrong => 'Sounds like this chapter';
+
+  @override
+  String get chapterFindStartMaybe => 'Chapter-like words';
+
+  @override
+  String chapterFindStartGap(String seconds) {
+    return '${seconds}s gap';
+  }
+
+  @override
+  String chapterFindStartRange(String from, String to) {
+    return 'Searched $from to $to';
+  }
+
+  @override
+  String get chapterFindStartNeedsModel =>
+      'Turn on transcription in Settings and download a model first';
+
+  @override
+  String get chapterFindStartUseThis => 'Use this';
+
+  @override
+  String chapterFindStartTitle(String title) {
+    return 'Title: $title';
+  }
+
+  @override
   String get chapterShiftBySeconds => 'Verschieben um (Sekunden)';
 
   @override
   String get chapterShiftHint =>
       'Verschiebt jedes entsperrte Kapitel. Verwende einen negativen Wert, um sie früher zu verschieben.';
-
-  @override
-  String get chapterBack1Second => '1 Sekunde zurück';
-
-  @override
-  String get chapterForward1Second => '1 Sekunde vorwärts';
 
   @override
   String get chapterTitleHint => 'Kapitelname';
@@ -7289,12 +7335,6 @@ class AppLocalizationsDe extends AppLocalizations {
   String chapterStartAt(String time) {
     return 'Beginne bei $time';
   }
-
-  @override
-  String get chapterSetStartHere => 'Beginn auf hier festlegen';
-
-  @override
-  String get chapterMore => 'Mehr';
 
   @override
   String get chapterUnlock => 'Entsperren';

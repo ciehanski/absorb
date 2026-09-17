@@ -514,6 +514,129 @@ class TranscriptionService {
     }
   }
 
+  /// Transcription is switched on and a model for [feature] is on the device,
+  /// regardless of any particular book.
+  Future<bool> canTranscribeNow({
+    TranscriptionFeature feature = TranscriptionFeature.readAlong,
+  }) async {
+    if (!await PlayerSettings.getTranscriptionEnabled()) return false;
+    final info = await _modelFor(null, feature);
+    return isModelDownloaded(info.size);
+  }
+
+  /// Decode [durationSeconds] of [source] from [startSeconds] (seconds into
+  /// that file, not the book) into a 16kHz mono WAV and hand back its path.
+  /// [source] is a local file, a content:// URI or a stream URL; the caller
+  /// owns the file. For callers that want the audio itself rather than a
+  /// transcript, like the chapter start finder.
+  Future<String?> extractWindowWav({
+    required String source,
+    required double startSeconds,
+    required double durationSeconds,
+  }) =>
+      _extractWav(
+        sourcePath: source,
+        startSeconds: startSeconds,
+        durationSeconds: durationSeconds,
+      );
+
+  /// Whisper over one ready-made 16kHz mono WAV. Same guards as
+  /// [transcribeAt]; the file is left alone.
+  Future<String> transcribeWav(
+    String wavPath, {
+    String? itemId,
+    bool? preferAccuracy,
+    TranscriptionFeature feature = TranscriptionFeature.readAlong,
+  }) async {
+    if (!await PlayerSettings.getTranscriptionEnabled()) {
+      throw TranscriptionException(TranscriptionError.disabled);
+    }
+    if (_busy) throw TranscriptionException(TranscriptionError.busy);
+    final info = await _modelFor(preferAccuracy, feature);
+    if (!await isModelDownloaded(info.size)) {
+      throw TranscriptionException(TranscriptionError.modelMissing);
+    }
+    lastModelUsed = info.size;
+    _busy = true;
+    final watch = Stopwatch()..start();
+    try {
+      final lang = itemId == null ? 'auto' : (_bookLang[itemId] ?? 'auto');
+      final String text;
+      try {
+        final result = await _whisper.transcribe(
+          model: info.whisperModel,
+          audioPath: wavPath,
+          lang: lang,
+          convert: false,
+          withTimestamps: false,
+          vadMode: WhisperVadMode.disabled,
+          threads: _threads(),
+        );
+        text = (result?.transcription.text ?? '').trim();
+        if (itemId != null) _cacheLanguage(itemId, result?.language, text.isNotEmpty);
+      } catch (e) {
+        if (e is TranscriptionException) rethrow;
+        throw TranscriptionException(TranscriptionError.transcribeFailed, e);
+      }
+      debugPrint('[Transcribe] wav model=${info.fileName} lang=$lang '
+          'whisper=${watch.elapsedMilliseconds}ms chars=${text.length}');
+      if (text.isEmpty) throw TranscriptionException(TranscriptionError.empty);
+      return text;
+    } finally {
+      _busy = false;
+    }
+  }
+
+  /// Like [transcribeWav] but keeps Whisper's segments and their timing, for
+  /// callers that care where the pauses fall.
+  Future<List<({double start, double end, String text})>> transcribeWavTimed(
+    String wavPath, {
+    String? itemId,
+    TranscriptionFeature feature = TranscriptionFeature.readAlong,
+  }) async {
+    if (!await PlayerSettings.getTranscriptionEnabled()) {
+      throw TranscriptionException(TranscriptionError.disabled);
+    }
+    if (_busy) throw TranscriptionException(TranscriptionError.busy);
+    final info = await _modelFor(null, feature);
+    if (!await isModelDownloaded(info.size)) {
+      throw TranscriptionException(TranscriptionError.modelMissing);
+    }
+    lastModelUsed = info.size;
+    _busy = true;
+    try {
+      final lang = itemId == null ? 'auto' : (_bookLang[itemId] ?? 'auto');
+      final List<({double start, double end, String text})> segments;
+      try {
+        final result = await _whisper.transcribe(
+          model: info.whisperModel,
+          audioPath: wavPath,
+          lang: lang,
+          convert: false,
+          withTimestamps: true,
+          vadMode: WhisperVadMode.disabled,
+          threads: _threads(),
+        );
+        segments = (result?.transcription.segments ?? const [])
+            .map((s) => (
+                  start: s.fromTs.inMilliseconds / 1000.0,
+                  end: s.toTs.inMilliseconds / 1000.0,
+                  text: s.text.trim(),
+                ))
+            .where((s) => s.text.isNotEmpty)
+            .toList();
+        if (itemId != null) _cacheLanguage(itemId, result?.language, segments.isNotEmpty);
+      } catch (e) {
+        if (e is TranscriptionException) rethrow;
+        throw TranscriptionException(TranscriptionError.transcribeFailed, e);
+      }
+      if (segments.isEmpty) throw TranscriptionException(TranscriptionError.empty);
+      return segments;
+    } finally {
+      _busy = false;
+    }
+  }
+
   // Internals
 
   // Capped at 4, not core count: whisper barriers its threads at every layer,

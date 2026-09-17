@@ -7205,17 +7205,63 @@ class AppLocalizationsFr extends AppLocalizations {
   String get chapterShowSeconds => 'Afficher les secondes';
 
   @override
+  String chapterWindowMinutes(int minutes) {
+    return '$minutes min';
+  }
+
+  @override
+  String get chapterLoopCut => 'Loop the cut';
+
+  @override
+  String get chapterFindStart => 'Find the start';
+
+  @override
+  String get chapterFindStartListening => 'Listening around the marker';
+
+  @override
+  String get chapterFindStartNone => 'Nothing here sounds like a chapter start';
+
+  @override
+  String get chapterFindStartWider => 'Search wider';
+
+  @override
+  String get chapterFindStartCeiling =>
+      'Searched half an hour around the marker. The start is further off than that, or there\'s no chapter announcement to hear.';
+
+  @override
+  String get chapterFindStartStrong => 'Sounds like this chapter';
+
+  @override
+  String get chapterFindStartMaybe => 'Chapter-like words';
+
+  @override
+  String chapterFindStartGap(String seconds) {
+    return '${seconds}s gap';
+  }
+
+  @override
+  String chapterFindStartRange(String from, String to) {
+    return 'Searched $from to $to';
+  }
+
+  @override
+  String get chapterFindStartNeedsModel =>
+      'Turn on transcription in Settings and download a model first';
+
+  @override
+  String get chapterFindStartUseThis => 'Use this';
+
+  @override
+  String chapterFindStartTitle(String title) {
+    return 'Title: $title';
+  }
+
+  @override
   String get chapterShiftBySeconds => 'Décaler de (secondes)';
 
   @override
   String get chapterShiftHint =>
       'Shifts every unlocked chapter. Use a negative value to move them earlier.';
-
-  @override
-  String get chapterBack1Second => 'Retour de 1 seconde';
-
-  @override
-  String get chapterForward1Second => 'Avancer de 1 seconde';
 
   @override
   String get chapterTitleHint => 'Titre du chapitre';
@@ -7227,18 +7273,12 @@ class AppLocalizationsFr extends AppLocalizations {
   String get chapterPreviewFromHere => 'Preview from here';
 
   @override
-  String get chapterScrubHint => 'Scrub to the exact spot, then set';
+  String get chapterScrubHint => 'Drag or nudge to move the start';
 
   @override
   String chapterStartAt(String time) {
     return 'Commencer à $time';
   }
-
-  @override
-  String get chapterSetStartHere => 'Set start here';
-
-  @override
-  String get chapterMore => 'Plus';
 
   @override
   String get chapterUnlock => 'Déverrouiller';

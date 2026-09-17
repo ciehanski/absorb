@@ -4224,14 +4224,38 @@
   "chapterFromTracks": "From Tracks",
   "chapterLookup": "Lookup",
   "chapterShowSeconds": "Show seconds",
+  "chapterWindowMinutes": "{minutes} min",
+  "@chapterWindowMinutes": {
+    "placeholders": { "minutes": { "type": "int" } }
+  },
+  "chapterLoopCut": "Loop the cut",
+  "chapterFindStart": "Find the start",
+  "chapterFindStartListening": "Listening around the marker",
+  "chapterFindStartNone": "Nothing here sounds like a chapter start",
+  "chapterFindStartWider": "Search wider",
+  "chapterFindStartCeiling": "Searched half an hour around the marker. The start is further off than that, or there's no chapter announcement to hear.",
+  "chapterFindStartStrong": "Sounds like this chapter",
+  "chapterFindStartMaybe": "Chapter-like words",
+  "chapterFindStartGap": "{seconds}s gap",
+  "@chapterFindStartGap": {
+    "placeholders": { "seconds": { "type": "String" } }
+  },
+  "chapterFindStartRange": "Searched {from} to {to}",
+  "@chapterFindStartRange": {
+    "placeholders": { "from": { "type": "String" }, "to": { "type": "String" } }
+  },
+  "chapterFindStartNeedsModel": "Turn on transcription in Settings and download a model first",
+  "chapterFindStartUseThis": "Use this",
+  "chapterFindStartTitle": "Title: {title}",
+  "@chapterFindStartTitle": {
+    "placeholders": { "title": { "type": "String" } }
+  },
   "chapterShiftBySeconds": "Shift by (seconds)",
   "chapterShiftHint": "Shifts every unlocked chapter. Use a negative value to move them earlier.",
-  "chapterBack1Second": "Back 1 second",
-  "chapterForward1Second": "Forward 1 second",
   "chapterTitleHint": "Chapter title",
   "chapterStopPreview": "Stop preview",
   "chapterPreviewFromHere": "Preview from here",
-  "chapterScrubHint": "Scrub to the exact spot, then set",
+  "chapterScrubHint": "Drag or nudge to move the start",
   "chapterStartAt": "Start at {time}",
   "@chapterStartAt": {
     "placeholders": {
@@ -4240,8 +4264,6 @@
       }
     }
   },
-  "chapterSetStartHere": "Set start here",
-  "chapterMore": "More",
   "chapterUnlock": "Unlock",
   "chapterLock": "Lock",
   "chapterInsertBelow": "Insert below",
