@@ -789,6 +789,41 @@ class _BookDetailSheetContentState extends State<_BookDetailSheetContent> {
       const SizedBox(height: 4),
       _buildAuthorLinks(context, metadata, cs, tt, accent),
       _buildNarratorLinks(context, metadata, cs, tt, accent),
+      // Series as a pill in the rating's style: a bounded target with its
+      // own edges, so it can't be mistaken for the narrator line above it.
+      if (seriesEntries.isNotEmpty) ...[
+        const SizedBox(height: 8),
+        Wrap(
+          alignment: WrapAlignment.center,
+          spacing: 8,
+          runSpacing: 6,
+          children: [
+            for (final s in seriesEntries)
+              GestureDetector(
+                onTap: () => _openSeries(context, s['id'] as String?, s['name'] as String? ?? ''),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: accent.withValues(alpha: 0.18)),
+                  ),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(Icons.auto_stories_rounded, size: 14, color: accent),
+                    const SizedBox(width: 6),
+                    Text(
+                      '${s['name'] as String? ?? ''}'
+                      '${(s['sequence'] as String? ?? '').isNotEmpty ? ' #${s['sequence']}' : ''}',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: accent),
+                    ),
+                    const SizedBox(width: 2),
+                    Icon(Icons.chevron_right_rounded, size: 16, color: accent.withValues(alpha: 0.6)),
+                  ]),
+                ),
+              ),
+          ],
+        ),
+      ],
       // ─── AUDIBLE RATING (space always reserved) ─────────
       const SizedBox(height: 8),
       if (_rating != null && (_rating!['rating'] as num).toDouble() > 0)
@@ -1091,36 +1126,6 @@ class _BookDetailSheetContentState extends State<_BookDetailSheetContent> {
             ]),
           ),
         ),
-      ],
-      // Series rows sit with the action buttons, same height as Preview and
-      // More, so a series book's neighbours are one tap from the top.
-      for (final s in seriesEntries) ...[
-        const SizedBox(height: 8),
-        Builder(builder: (context) {
-          final name = s['name'] as String? ?? '';
-          final seq = s['sequence'] as String? ?? '';
-          final seriesId = s['id'] as String?;
-          return GestureDetector(
-            onTap: () => _openSeries(context, seriesId, name),
-            child: Container(
-              height: 36,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              decoration: BoxDecoration(
-                color: accent.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: accent.withValues(alpha: 0.15)),
-              ),
-              child: Row(children: [
-                Icon(Icons.auto_stories_rounded, size: 16, color: accent.withValues(alpha: 0.7)),
-                const SizedBox(width: 8),
-                Expanded(child: Text('$name${seq.isNotEmpty ? ' #$seq' : ''}',
-                  maxLines: 1, overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: accent.withValues(alpha: 0.9), fontSize: 12, fontWeight: FontWeight.w500))),
-                Icon(Icons.chevron_right_rounded, size: 18, color: accent.withValues(alpha: 0.5)),
-              ]),
-            ),
-          );
-        }),
       ],
       // More button below primary row
       const SizedBox(height: 8),
@@ -2009,7 +2014,10 @@ class _BookDetailSheetContentState extends State<_BookDetailSheetContent> {
       alignment: WrapAlignment.center,
       children: [
         for (int i = 0; i < visible.length; i++) ...[
+          // Padding makes the tap target the full line height, not just the
+          // glyphs, so a thumb between two stacked links lands on one.
           GestureDetector(
+            behavior: HitTestBehavior.opaque,
             onTap: () {
               final a = visible[i] as Map<String, dynamic>? ?? {};
               final id = a['id'] as String? ?? '';
@@ -2017,20 +2025,30 @@ class _BookDetailSheetContentState extends State<_BookDetailSheetContent> {
               if (id.isEmpty || name.isEmpty) return;
               showAuthorDetailSheet(context, authorId: id, authorName: name);
             },
-            child: Text(
-              (visible[i] as Map<String, dynamic>?)?['name'] as String? ?? '',
-              style: linkStyle,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
+              child: Text(
+                (visible[i] as Map<String, dynamic>?)?['name'] as String? ?? '',
+                style: linkStyle,
+              ),
             ),
           ),
           if (i < visible.length - 1 || (!showAll && remaining > 0))
-            Text(', ', style: commaStyle),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Text(', ', style: commaStyle),
+            ),
         ],
         if (!showAll)
           GestureDetector(
+            behavior: HitTestBehavior.opaque,
             onTap: () => setState(() => _authorsExpanded = true),
-            child: Text(AppLocalizations.of(context)!.andCountMore(remaining), style: tt.bodyMedium?.copyWith(
-              color: accent.withValues(alpha: 0.7),
-            )),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
+              child: Text(AppLocalizations.of(context)!.andCountMore(remaining), style: tt.bodyMedium?.copyWith(
+                color: accent.withValues(alpha: 0.7),
+              )),
+            ),
           ),
       ],
     );
@@ -2079,23 +2097,42 @@ class _BookDetailSheetContentState extends State<_BookDetailSheetContent> {
       child: Wrap(
         alignment: WrapAlignment.center,
         children: [
-          if (prefix.isNotEmpty) Text(prefix, style: baseStyle),
+          if (prefix.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Text(prefix, style: baseStyle),
+            ),
           for (int i = 0; i < visible.length; i++) ...[
             GestureDetector(
+              behavior: HitTestBehavior.opaque,
               onTap: () => showNarratorBooksSheet(context, narratorName: visible[i]),
-              child: Text(visible[i], style: linkStyle),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
+                child: Text(visible[i], style: linkStyle),
+              ),
             ),
             if (i < visible.length - 1 || (!showAll && remaining > 0))
-              Text(', ', style: commaStyle),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Text(', ', style: commaStyle),
+              ),
           ],
           if (!showAll)
             GestureDetector(
+              behavior: HitTestBehavior.opaque,
               onTap: () => setState(() => _narratorsExpanded = true),
-              child: Text(l.andCountMore(remaining), style: tt.bodySmall?.copyWith(
-                color: accent.withValues(alpha: 0.7),
-              )),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
+                child: Text(l.andCountMore(remaining), style: tt.bodySmall?.copyWith(
+                  color: accent.withValues(alpha: 0.7),
+                )),
+              ),
             ),
-          if (suffix.isNotEmpty) Text(suffix, style: baseStyle),
+          if (suffix.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Text(suffix, style: baseStyle),
+            ),
         ],
       ),
     );
