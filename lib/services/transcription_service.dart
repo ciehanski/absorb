@@ -138,6 +138,17 @@ class TranscriptionService {
   bool _busy = false;
   bool _cancelDownload = false;
 
+  // A native crash in the audio decode or in whisper takes the app down with
+  // nothing in the log, and the two look identical from outside. These say
+  // which step was running when the log stops. Only the first few per run:
+  // the live transcript does this every few seconds.
+  int _stepMarks = 0;
+  void _markStep(String step) {
+    if (_stepMarks >= 6) return;
+    _stepMarks++;
+    debugPrint('[Transcribe] step: $step');
+  }
+
   /// Which model the last run actually used, after [_modelFor] had its say.
   TranscriptionModelSize? lastModelUsed;
 
@@ -334,6 +345,8 @@ class TranscriptionService {
     String? wavPath;
     final watch = Stopwatch()..start();
     try {
+      _markStep('decoding ${sourcePath.split('.').last} audio '
+          '(${localOffset.toStringAsFixed(0)}s +${window.toStringAsFixed(0)}s)');
       wavPath = await _extractWav(
         sourcePath: sourcePath,
         startSeconds: localOffset,
@@ -350,6 +363,7 @@ class TranscriptionService {
       final String text;
       final lang = _bookLang[itemId] ?? 'auto';
       try {
+        _markStep('audio decoded, running whisper ${info.fileName}');
         final result = await _whisper.transcribe(
           model: info.whisperModel,
           audioPath: wavPath,
@@ -453,6 +467,8 @@ class TranscriptionService {
     String? wavPath;
     final watch = Stopwatch()..start();
     try {
+      _markStep('decoding ${sourcePath.split('.').last} audio '
+          '(${localOffset.toStringAsFixed(0)}s +${window.toStringAsFixed(0)}s)');
       wavPath = await _extractWav(
         sourcePath: sourcePath,
         startSeconds: localOffset,
@@ -466,6 +482,7 @@ class TranscriptionService {
       final List<({double start, double end, String text})> segments;
       final lang = _bookLang[itemId] ?? 'auto';
       try {
+        _markStep('audio decoded, running whisper ${info.fileName}');
         final result = await _whisper.transcribe(
           model: info.whisperModel,
           audioPath: wavPath,
@@ -563,6 +580,7 @@ class TranscriptionService {
       final lang = itemId == null ? 'auto' : (_bookLang[itemId] ?? 'auto');
       final String text;
       try {
+        _markStep('audio decoded, running whisper ${info.fileName}');
         final result = await _whisper.transcribe(
           model: info.whisperModel,
           audioPath: wavPath,
@@ -608,6 +626,7 @@ class TranscriptionService {
       final lang = itemId == null ? 'auto' : (_bookLang[itemId] ?? 'auto');
       final List<({double start, double end, String text})> segments;
       try {
+        _markStep('audio decoded, running whisper ${info.fileName}');
         final result = await _whisper.transcribe(
           model: info.whisperModel,
           audioPath: wavPath,
