@@ -8227,6 +8227,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get seriesUpNext => 'Up next';
 
   @override
+  String get seriesJumpToUpNext => 'Jump to up next';
+
+  @override
   String get seriesStatsFinished => 'Finished';
 
   @override

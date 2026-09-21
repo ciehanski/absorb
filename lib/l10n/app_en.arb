@@ -4714,6 +4714,7 @@
     "placeholders": { "count": { "type": "int" } }
   },
   "seriesUpNext": "Up next",
+  "seriesJumpToUpNext": "Jump to up next",
   "seriesStatsFinished": "Finished",
   "seriesStatsListened": "Listened",
   "seriesStatsLeft": "Left",

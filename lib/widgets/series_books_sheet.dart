@@ -110,6 +110,12 @@ class _SeriesBooksSheetState extends State<SeriesBooksSheet> {
   // the next book measures them instead of guessing.
   final _headerKey = GlobalKey();
   final _barKey = GlobalKey();
+  // Sits on whatever shows the up next book - its card, its tile, or in the
+  // grouped grid the tile of the sub-series holding it - so the jump can
+  // land exactly once that part of the list is built.
+  final _jumpTargetKey = GlobalKey();
+  String? _jumpTargetId;
+  int _jumpTargetIndex = -1;
 
   void _maybeDeriveScheme(String url) {
     if (url.isEmpty || _coverSchemeUrl == url || PlayerSettings.einkMode) return;
@@ -221,6 +227,113 @@ class _SeriesBooksSheetState extends State<SeriesBooksSheet> {
     });
   }
 
+  bool _subSeriesHolds(Map<String, dynamic> series, String bookId) =>
+      (series['books'] as List<Map<String, dynamic>>).any((b) => b['id'] == bookId);
+
+  /// The first sub-series (in display order) holding the up next book.
+  Map<String, dynamic>? _jumpOwnerGroup(List<Map<String, dynamic>> subSeries) {
+    final id = _jumpTargetId;
+    if (id == null) return null;
+    for (final series in subSeries) {
+      if (_subSeriesHolds(series, id)) return series;
+    }
+    return null;
+  }
+
+  Widget _asJumpTarget(bool isTarget, Widget child) =>
+      isTarget ? KeyedSubtree(key: _jumpTargetKey, child: child) : child;
+
+  /// Roughly where [bookId] sits in the scroll view. The list and the grids
+  /// are exact; the grouped list guesses its header heights, which is close
+  /// enough to get the target built so the jump can finish on it.
+  double? _estimateOffsetFor(String bookId) {
+    double above = 0;
+    for (final key in [_headerKey, _barKey]) {
+      final box = key.currentContext?.findRenderObject();
+      if (box is RenderBox && box.hasSize) above += box.size.height;
+    }
+    const cardExtent = 120.0; // 112 card + 8 gap
+    const groupHeaderExtent = 68.0;
+    final columns = coverGridCount(context);
+    final width = context.size?.width ?? MediaQuery.sizeOf(context).width;
+    final gridRowExtent = ((width - 32 - 8 * (columns - 1)) / columns) / 0.65 + 8;
+
+    if (!_collapseSeries) {
+      final index = _books.indexWhere((b) => b['id'] == bookId);
+      if (index < 0) return null;
+      return _gridView
+          ? above + (index ~/ columns) * gridRowExtent
+          : above + index * cardExtent;
+    }
+    final groups = _buildSubSeriesGroups();
+    final standaloneAt = groups.standalone.indexWhere((b) => b['id'] == bookId);
+    if (_gridView) {
+      var index = groups.subSeries.indexWhere((s) => _subSeriesHolds(s, bookId));
+      if (index < 0) {
+        if (standaloneAt < 0) return null;
+        index = groups.subSeries.length + standaloneAt;
+      }
+      return above + (index ~/ columns) * gridRowExtent;
+    }
+    var offset = above;
+    for (final series in groups.subSeries) {
+      final books = series['books'] as List<Map<String, dynamic>>;
+      final at = books.indexWhere((b) => b['id'] == bookId);
+      if (at >= 0) return offset + groupHeaderExtent + at * cardExtent;
+      offset += groupHeaderExtent;
+      if (_expandedSubSeries.contains(series['id'] as String? ?? '')) {
+        offset += books.length * cardExtent;
+      }
+    }
+    return standaloneAt < 0 ? null : offset + standaloneAt * cardExtent;
+  }
+
+  /// Scrolls to the up next book. Far down a long series it is not built yet,
+  /// so this goes to the estimate first and then settles on the real thing.
+  Future<void> _jumpToUpNext() async {
+    final id = _jumpTargetId;
+    if (id == null) return;
+    HapticFeedback.selectionClick();
+    final instant = PlayerSettings.einkMode;
+
+    // Grouped list: the book is inside a folded sub-series until it is opened.
+    if (_collapseSeries && !_gridView) {
+      final owner = _jumpOwnerGroup(_buildSubSeriesGroups().subSeries);
+      final sid = owner?['id'] as String? ?? '';
+      if (owner != null && !_expandedSubSeries.contains(sid)) {
+        setState(() => _expandedSubSeries.add(sid));
+      }
+    }
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted || !widget.scrollController.hasClients) return;
+
+    if (_jumpTargetKey.currentContext == null) {
+      final estimate = _estimateOffsetFor(id);
+      if (estimate == null) return;
+      final position = widget.scrollController.position;
+      final to = estimate.clamp(0.0, position.maxScrollExtent).toDouble();
+      if (instant) {
+        widget.scrollController.jumpTo(to);
+      } else {
+        await widget.scrollController.animateTo(
+          to,
+          duration: const Duration(milliseconds: 400),
+          curve: Curves.easeOutCubic,
+        );
+      }
+      if (!mounted) return;
+      await WidgetsBinding.instance.endOfFrame;
+    }
+    final target = _jumpTargetKey.currentContext;
+    if (target == null || !target.mounted) return;
+    await Scrollable.ensureVisible(
+      target,
+      alignment: 0.05,
+      duration: instant ? Duration.zero : const Duration(milliseconds: 300),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
   void _loadAutoDownloadState() {
     final seriesId = widget.seriesId;
     if (seriesId == null || seriesId.isEmpty) return;
@@ -271,10 +384,19 @@ class _SeriesBooksSheetState extends State<SeriesBooksSheet> {
     if (sub != null && sub.toString().trim().isNotEmpty) return sub.toString();
     final seq = book['sequence'];
     if (seq != null) return seq.toString();
+    // Full items list every series the book is in, so find this one. Taking
+    // the first gave a Cosmere book its Mistborn number (GH #397).
+    final own = _subSeqFor(book, widget.seriesId ?? '', widget.seriesName);
+    if (own != null) return own;
     final media = book['media'] as Map<String, dynamic>? ?? {};
     final metadata = media['metadata'] as Map<String, dynamic>? ?? {};
     final seriesRaw = metadata['series'];
     if (seriesRaw is List) {
+      // In this series with no number: show none, not another series' number.
+      final id = widget.seriesId ?? '';
+      if (id.isNotEmpty && seriesRaw.any((s) => s is Map<String, dynamic> && s['id'] == id)) {
+        return null;
+      }
       for (final s in seriesRaw) {
         if (s is Map<String, dynamic> && s['sequence'] != null) {
           return s['sequence'].toString();
@@ -348,10 +470,13 @@ class _SeriesBooksSheetState extends State<SeriesBooksSheet> {
     final list = seriesRaw is List
         ? seriesRaw.whereType<Map<String, dynamic>>()
         : seriesRaw is Map<String, dynamic> ? [seriesRaw] : const <Map<String, dynamic>>[];
+    final wantedName = subName.trim().toLowerCase();
     for (final s in list) {
-      if ((s['id'] as String? ?? '') == subId && s['sequence'] != null) {
-        return s['sequence'].toString();
-      }
+      if (s['sequence'] == null) continue;
+      final byId = subId.isNotEmpty && (s['id'] as String? ?? '') == subId;
+      final byName = wantedName.isNotEmpty &&
+          (s['name'] as String? ?? '').trim().toLowerCase() == wantedName;
+      if (byId || byName) return s['sequence'].toString();
     }
     final joined = metadata['seriesName'] as String? ?? '';
     if (joined.isNotEmpty && subName.isNotEmpty) {
@@ -505,6 +630,7 @@ class _SeriesBooksSheetState extends State<SeriesBooksSheet> {
 
   Widget _buildGroupedGrid(ColorScheme cs, TextTheme tt, LibraryProvider lib) {
     final parsed = _buildSubSeriesGroups();
+    final owner = _jumpOwnerGroup(parsed.subSeries);
 
     return SliverPadding(
       padding: EdgeInsets.fromLTRB(16, 0, 16, 24 + MediaQuery.of(context).viewPadding.bottom),
@@ -513,10 +639,17 @@ class _SeriesBooksSheetState extends State<SeriesBooksSheet> {
         itemCount: parsed.subSeries.length + parsed.standalone.length,
         itemBuilder: (context, index) {
           if (index < parsed.subSeries.length) {
-            return GridSeriesTileDirect(series: parsed.subSeries[index], parentSeriesId: widget.seriesId);
+            final series = parsed.subSeries[index];
+            return _asJumpTarget(
+              identical(series, owner),
+              GridSeriesTileDirect(series: series, parentSeriesId: widget.seriesId),
+            );
           }
           final book = parsed.standalone[index - parsed.subSeries.length];
-          return GridBookTile(item: book, sequenceBadge: _getSequenceString(book));
+          return _asJumpTarget(
+            book['id'] == _jumpTargetId,
+            GridBookTile(item: book, sequenceBadge: _getSequenceString(book)),
+          );
         },
       ),
     );
@@ -524,6 +657,7 @@ class _SeriesBooksSheetState extends State<SeriesBooksSheet> {
 
   Widget _buildGroupedList(ColorScheme cs, TextTheme tt, LibraryProvider lib) {
     final parsed = _buildSubSeriesGroups();
+    final owner = _jumpOwnerGroup(parsed.subSeries);
     final l = AppLocalizations.of(context)!;
 
     return SliverPadding(
@@ -577,7 +711,8 @@ class _SeriesBooksSheetState extends State<SeriesBooksSheet> {
                     ),
                   ),
                   if (isExpanded)
-                    ...subBooks.map((book) => _buildBookCard(cs, tt, lib, book)),
+                    ...subBooks.map((book) => _buildBookCard(cs, tt, lib, book,
+                        jumpTarget: identical(series, owner))),
                 ],
               ),
             );
@@ -1073,6 +1208,12 @@ class _SeriesBooksSheetState extends State<SeriesBooksSheet> {
     final allDownloaded = downloaded == _books.length;
     final hasSeriesId = widget.seriesId != null && widget.seriesId!.isNotEmpty;
     return [
+                // Only once the up next book is past the first few rows.
+                if (_jumpTargetIndex >= 3)
+                  ActionPillData(
+                    icon: Icons.keyboard_double_arrow_down_rounded,
+                    label: l.seriesJumpToUpNext,
+                    onTap: _jumpToUpNext),
                 if (hasSeriesId)
                   ActionPillData(
                     icon: _autoDownloadEnabled ? Icons.downloading_rounded : Icons.download_outlined,
@@ -1223,6 +1364,8 @@ class _SeriesBooksSheetState extends State<SeriesBooksSheet> {
         nextUp ??= book;
       }
     }
+    _jumpTargetId = nextUp?['id'] as String?;
+    _jumpTargetIndex = nextUp == null ? -1 : _books.indexOf(nextUp);
     final schemeBook = nextUp ?? (_books.isNotEmpty ? _books.first : null);
     if (schemeBook != null) _maybeDeriveScheme(lib.getCoverUrl(schemeBook['id'] as String? ?? '') ?? '');
     final accent = PlayerSettings.einkMode ? cs.primary : (_coverScheme?.primary ?? cs.primary);
@@ -1371,8 +1514,10 @@ class _SeriesBooksSheetState extends State<SeriesBooksSheet> {
                 sliver: SliverGrid.builder(
                   gridDelegate: sheetBookGridDelegate(context, childAspectRatio: 0.65),
                   itemCount: _books.length,
-                  itemBuilder: (context, index) =>
-                      GridBookTile(item: _books[index], sequenceBadge: _getSequenceString(_books[index])),
+                  itemBuilder: (context, index) => _asJumpTarget(
+                    _books[index]['id'] == _jumpTargetId,
+                    GridBookTile(item: _books[index], sequenceBadge: _getSequenceString(_books[index])),
+                  ),
                 ),
               )
             else
@@ -1389,7 +1534,14 @@ class _SeriesBooksSheetState extends State<SeriesBooksSheet> {
     );
   }
 
-  Widget _buildBookCard(ColorScheme cs, TextTheme tt, LibraryProvider lib, Map<String, dynamic> book) {
+  // [jumpTarget] is false for every sub-series but the first one holding the
+  // up next book: a book can sit in two of them, and a key can only be used
+  // once.
+  Widget _buildBookCard(ColorScheme cs, TextTheme tt, LibraryProvider lib, Map<String, dynamic> book,
+          {bool jumpTarget = true}) =>
+      _asJumpTarget(jumpTarget && book['id'] == _jumpTargetId, _bookCard(cs, tt, lib, book));
+
+  Widget _bookCard(ColorScheme cs, TextTheme tt, LibraryProvider lib, Map<String, dynamic> book) {
     final l = AppLocalizations.of(context)!;
     final bookId = book['id'] as String? ?? '';
     final media = book['media'] as Map<String, dynamic>? ?? {};

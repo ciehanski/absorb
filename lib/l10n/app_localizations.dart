@@ -14175,6 +14175,12 @@ abstract class AppLocalizations {
   /// **'Up next'**
   String get seriesUpNext;
 
+  /// No description provided for @seriesJumpToUpNext.
+  ///
+  /// In en, this message translates to:
+  /// **'Jump to up next'**
+  String get seriesJumpToUpNext;
+
   /// No description provided for @seriesStatsFinished.
   ///
   /// In en, this message translates to:
