@@ -1611,16 +1611,57 @@ class DownloadService extends ChangeNotifier {
           ? itemId.substring(0, itemId.length - episodeId.length - 1)
           : itemId;
 
-      // The forced direct-play session provides both offline metadata and the
-      // authoritative /file/:ino path for every included track.
-      final sessionData = episodeId != null
-          ? await api.startEpisodePlaybackSession(apiItemId, episodeId)
-          : await api.startPlaybackSession(apiItemId);
+      // Offline metadata and the /file/:ino path of every track, read from the
+      // item itself. A play session carries the same data, but opening one
+      // makes the server close whatever session this phone is streaming on:
+      // the stream then died about 20 seconds into every download and had to
+      // reload, heard as a blip. The session stays as the fallback for a
+      // server whose item has no track list.
+      final sessionData =
+          await _sessionShapedItem(api, apiItemId, episodeId) ??
+              (episodeId != null
+                  ? await api.startEpisodePlaybackSession(apiItemId, episodeId)
+                  : await api.startPlaybackSession(apiItemId));
       if (sessionData == null) throw Exception('Failed to start session');
 
       final audioTracks = sessionData['audioTracks'] as List<dynamic>?;
       if (audioTracks == null || audioTracks.isEmpty) {
         throw Exception('No audio tracks');
+      }
+
+      // The caller's names come from whatever list started the download, and
+      // a queue entry has been seen carrying another episode's title and an
+      // episode title as the show. The server's answer is for exactly this
+      // item, so it names the record and the folder. An episode's "author"
+      // is its show, which is how downloads are grouped.
+      final serverMeta = sessionData['mediaMetadata'] as Map<String, dynamic>?;
+      final serverTitle = (sessionData['displayTitle'] as String?)?.trim() ?? '';
+      final authorField = episodeId != null ? 'title' : 'authorName';
+      final serverAuthor = (serverMeta?[authorField] as String?)?.trim() ?? '';
+      if (serverTitle.isNotEmpty && serverTitle != title) {
+        debugPrint('[Download] Title from the server: "$serverTitle" (was "$title")');
+        title = serverTitle;
+      }
+      var renamed = false;
+      if (serverAuthor.isNotEmpty && serverAuthor != author) {
+        debugPrint('[Download] Author from the server: "$serverAuthor" (was "$author")');
+        author = serverAuthor;
+        renamed = true;
+      }
+      if (renamed || _downloads[itemId]?.title != title) {
+        final running = _downloads[itemId];
+        if (running != null && running.status == DownloadStatus.downloading) {
+          _downloads[itemId] = DownloadInfo(
+            itemId: itemId,
+            status: DownloadStatus.downloading,
+            progress: running.progress,
+            title: title,
+            author: author,
+            coverUrl: coverUrl,
+            libraryId: libraryId,
+          );
+          notifyListeners();
+        }
       }
 
       final files = _resolveDurableFiles(api, apiItemId, audioTracks);
@@ -1792,6 +1833,68 @@ class DownloadService extends ChangeNotifier {
 
   /// Rebuild forced-direct-play track URLs against the current server/token so
   /// native tasks can outlive the playback session that supplied the metadata.
+  /// What a download needs from a play session - tracks, chapters, duration
+  /// and the item for offline metadata - built from the item instead, in the
+  /// session's shape so everything that reads a stored download is unchanged.
+  /// Null when the item does not give a usable track list; the caller then
+  /// falls back to a real session.
+  Future<Map<String, dynamic>?> _sessionShapedItem(
+      ApiService api, String apiItemId, String? episodeId) async {
+    try {
+      final fetched = await api.getLibraryItem(apiItemId);
+      if (fetched == null) return null;
+      final item = Map<String, dynamic>.from(fetched)..remove('userMediaProgress');
+      final media = item['media'] as Map<String, dynamic>? ?? const {};
+      final metadata = media['metadata'] as Map<String, dynamic>? ?? const {};
+
+      List<dynamic> tracks;
+      List<dynamic> chapters;
+      num? duration;
+      String? title;
+      String? author;
+      if (episodeId != null) {
+        final episode = (media['episodes'] as List<dynamic>? ?? const [])
+            .whereType<Map<String, dynamic>>()
+            .where((e) => e['id'] == episodeId)
+            .firstOrNull;
+        final track = episode?['audioTrack'];
+        if (episode == null || track is! Map<String, dynamic>) return null;
+        tracks = [track];
+        chapters = episode['chapters'] as List<dynamic>? ?? const [];
+        duration = episode['duration'] as num? ?? track['duration'] as num?;
+        title = episode['title'] as String?;
+        author = metadata['author'] as String?;
+      } else {
+        tracks = media['tracks'] as List<dynamic>? ?? const [];
+        chapters = media['chapters'] as List<dynamic>? ?? const [];
+        duration = media['duration'] as num?;
+        title = metadata['title'] as String?;
+        author = metadata['authorName'] as String?;
+      }
+      if (tracks.isEmpty || duration == null || duration <= 0) return null;
+      // Throws on a track without a /file/:ino path.
+      _resolveDurableFiles(api, apiItemId, tracks);
+
+      debugPrint('[Download] Track list read from the item, no play session opened '
+          '(${tracks.length} tracks)');
+      return {
+        'libraryItemId': apiItemId,
+        'episodeId': episodeId,
+        'mediaType': item['mediaType'],
+        'mediaMetadata': metadata,
+        'displayTitle': title,
+        'displayAuthor': author,
+        'duration': duration,
+        'chapters': chapters,
+        'audioTracks': tracks,
+        'libraryItem': item,
+      };
+    } catch (e) {
+      debugPrint('[Download] Item has no usable track list ($e) - using a play session');
+      return null;
+    }
+  }
+
   List<({String url, String filename})> _resolveDurableFiles(
       ApiService api, String apiItemId, List<dynamic> audioTracks) {
     final out = <({String url, String filename})>[];
