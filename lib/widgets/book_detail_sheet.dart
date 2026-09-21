@@ -1559,7 +1559,7 @@ class _BookDetailSheetContentState extends State<_BookDetailSheetContent> {
                   widthFactor: progress.clamp(0.0, 1.0),
                   child: Container(color: onAccent.withValues(alpha: 0.22)),
                 ),
-              Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              Positioned.fill(child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                 showAbsorbingState
                     ? SizedBox(width: 16, height: 16, child: AbsorbingWave(color: onAccent))
                     : isFinished
@@ -1575,7 +1575,7 @@ class _BookDetailSheetContentState extends State<_BookDetailSheetContent> {
                   maxLines: 1, overflow: TextOverflow.ellipsis,
                   style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: onAccent),
                 )),
-              ]),
+              ])),
             ]),
           ),
         );
@@ -1989,6 +1989,34 @@ class _BookDetailSheetContentState extends State<_BookDetailSheetContent> {
     );
   }
 
+  // The name and its comma are one Wrap child so the comma can never start
+  // the next line. Padding makes the tap target the full line height, not
+  // just the glyphs, so a thumb between two stacked links lands on one.
+  Widget _nameLink(String name, TextStyle? linkStyle, TextStyle? commaStyle,
+      {required bool comma, required VoidCallback onTap}) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Flexible(
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: onTap,
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(2, 6, comma ? 0 : 2, 6),
+              child: Text(name, style: linkStyle),
+            ),
+          ),
+        ),
+        if (comma)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: Text(', ', style: commaStyle),
+          ),
+      ],
+    );
+  }
+
   Widget _buildAuthorLinks(BuildContext context, Map<String, dynamic> metadata, ColorScheme cs, TextTheme tt, Color accent) {
     final authors = metadata['authors'] as List<dynamic>? ?? [];
     // Fall back to authorName string if no structured authors array
@@ -2013,11 +2041,12 @@ class _BookDetailSheetContentState extends State<_BookDetailSheetContent> {
     return Wrap(
       alignment: WrapAlignment.center,
       children: [
-        for (int i = 0; i < visible.length; i++) ...[
-          // Padding makes the tap target the full line height, not just the
-          // glyphs, so a thumb between two stacked links lands on one.
-          GestureDetector(
-            behavior: HitTestBehavior.opaque,
+        for (int i = 0; i < visible.length; i++)
+          _nameLink(
+            (visible[i] as Map<String, dynamic>?)?['name'] as String? ?? '',
+            linkStyle,
+            commaStyle,
+            comma: i < visible.length - 1 || (!showAll && remaining > 0),
             onTap: () {
               final a = visible[i] as Map<String, dynamic>? ?? {};
               final id = a['id'] as String? ?? '';
@@ -2025,20 +2054,7 @@ class _BookDetailSheetContentState extends State<_BookDetailSheetContent> {
               if (id.isEmpty || name.isEmpty) return;
               showAuthorDetailSheet(context, authorId: id, authorName: name);
             },
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
-              child: Text(
-                (visible[i] as Map<String, dynamic>?)?['name'] as String? ?? '',
-                style: linkStyle,
-              ),
-            ),
           ),
-          if (i < visible.length - 1 || (!showAll && remaining > 0))
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 6),
-              child: Text(', ', style: commaStyle),
-            ),
-        ],
         if (!showAll)
           GestureDetector(
             behavior: HitTestBehavior.opaque,
@@ -2102,21 +2118,14 @@ class _BookDetailSheetContentState extends State<_BookDetailSheetContent> {
               padding: const EdgeInsets.symmetric(vertical: 6),
               child: Text(prefix, style: baseStyle),
             ),
-          for (int i = 0; i < visible.length; i++) ...[
-            GestureDetector(
-              behavior: HitTestBehavior.opaque,
+          for (int i = 0; i < visible.length; i++)
+            _nameLink(
+              visible[i],
+              linkStyle,
+              commaStyle,
+              comma: i < visible.length - 1 || (!showAll && remaining > 0),
               onTap: () => showNarratorBooksSheet(context, narratorName: visible[i]),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
-                child: Text(visible[i], style: linkStyle),
-              ),
             ),
-            if (i < visible.length - 1 || (!showAll && remaining > 0))
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 6),
-                child: Text(', ', style: commaStyle),
-              ),
-          ],
           if (!showAll)
             GestureDetector(
               behavior: HitTestBehavior.opaque,
