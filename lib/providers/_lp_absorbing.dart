@@ -447,7 +447,21 @@ mixin _AbsorbingMixin on ChangeNotifier, _StateMixin, _CoreMixin {
       self.resetProgressFor(key);
     }
 
-    unblockFromAbsorbing(key);
+    // Hand over the name of what is starting. Without it a new episode's
+    // queue entry was copied from the show's card and kept that card's
+    // episode - another one - under this episode's id.
+    final player = AudioPlayerService();
+    final playingKey = player.currentEpisodeId == null
+        ? player.currentItemId
+        : '${player.currentItemId}-${player.currentEpisodeId}';
+    final startingEpisode = key.length > 36 && playingKey == key;
+    unblockFromAbsorbing(
+      key,
+      episodeTitle: startingEpisode
+          ? (player.currentEpisodeTitle ?? player.currentTitle)
+          : null,
+      episodeDuration: startingEpisode && duration > 0 ? duration : null,
+    );
     if (!wasFinished) return;
 
     try {
@@ -492,13 +506,12 @@ mixin _AbsorbingMixin on ChangeNotifier, _StateMixin, _CoreMixin {
               final episodeId = key.substring(37);
               final cached = Map<String, dynamic>.from(e);
               cached['_absorbingKey'] = key;
-              cached['recentEpisode'] = {
-                ...?(cached['recentEpisode'] as Map<String, dynamic>?),
-                'id': episodeId,
-                if (episodeTitle != null) 'title': episodeTitle,
-                if (episodeDuration != null && episodeDuration > 0)
-                  'duration': episodeDuration,
-              };
+              cached['recentEpisode'] = _episodeStub(
+                cached['recentEpisode'] as Map<String, dynamic>?,
+                episodeId,
+                episodeTitle,
+                episodeDuration,
+              );
               _absorbingItemCache[key] = cached;
             } else {
               _absorbingItemCache[key] = e;
@@ -513,19 +526,52 @@ mixin _AbsorbingMixin on ChangeNotifier, _StateMixin, _CoreMixin {
       if (cached['_absorbingKey'] == null) cached['_absorbingKey'] = key;
       final episodeId = key.substring(37);
       final re = cached['recentEpisode'] as Map<String, dynamic>?;
+      final storedTitle = re?['title'] as String?;
       if (re == null || (re['id'] as String?) != episodeId) {
-        cached['recentEpisode'] = {
-          ...?re,
-          'id': episodeId,
-          if (episodeTitle != null) 'title': episodeTitle,
-          if (episodeDuration != null && episodeDuration > 0)
-            'duration': episodeDuration,
-        };
-      } else if (episodeTitle != null && re['title'] == null) {
+        cached['recentEpisode'] =
+            _episodeStub(re, episodeId, episodeTitle, episodeDuration);
+        changed = true;
+      } else if (episodeTitle != null && storedTitle == null) {
         cached['recentEpisode'] = {...re, 'title': episodeTitle};
+        changed = true;
+      } else if (episodeTitle != null &&
+          storedTitle != 'Episode' &&
+          storedTitle != episodeTitle) {
+        // Right id under another episode's name: an entry saved before the
+        // fix above. The rest of it is that other episode's too, so keep
+        // only what is known about this one.
+        cached['recentEpisode'] =
+            _episodeStub(null, episodeId, episodeTitle, episodeDuration);
+        changed = true;
       }
     }
     if (changed) _saveManualAbsorbing();
+    if (isCompound &&
+        (_absorbingItemCache[key]?['recentEpisode']
+                as Map<String, dynamic>?)?['title'] ==
+            'Episode') {
+      unawaited(_enrichEpisodeTitles());
+    }
+  }
+
+  /// The episode part of a queue entry for [episodeId]. [existing] is only
+  /// kept when it is that same episode; another episode's fields (title,
+  /// duration, audio file) must not end up under this id. With no title known
+  /// it carries the 'Episode' placeholder that _enrichEpisodeTitles swaps for
+  /// the real episode from the server.
+  Map<String, dynamic> _episodeStub(
+    Map<String, dynamic>? existing,
+    String episodeId,
+    String? title,
+    double? duration,
+  ) {
+    final same = existing != null && existing['id'] == episodeId;
+    return {
+      if (same) ...existing,
+      'id': episodeId,
+      if (title != null) 'title': title else if (!same || existing['title'] == null) 'title': 'Episode',
+      if (duration != null && duration > 0) 'duration': duration,
+    };
   }
 
   void clearAbsorbingBlock(String key) {
