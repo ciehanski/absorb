@@ -467,13 +467,22 @@ const String _body = r'''
         RA.cur.painted = start;
         // The spans arrive in their "in" state (page color); dropping it on
         // the next frame lets the tint fade in rather than snap.
+        // Scheduled on the reader page, never on the book's own frame: the
+        // book sits in a sandboxed iframe with scripting off, and WebKit on
+        // newer iOS does not run frame callbacks for such a document. The
+        // spans then kept the page color for good - pages turned, nothing
+        // was ever tinted. The timer covers a frame callback that is paused.
         var fresh = spans;
-        var win = doc.defaultView || window;
-        (win.requestAnimationFrame || function(f) { setTimeout(f, 16); })(function() {
+        var dropped = false;
+        var dropIn = function() {
+          if (dropped) return;
+          dropped = true;
           for (var a = 0; a < fresh.length; a++) {
             for (var b2 = 0; b2 < fresh[a].length; b2++) fresh[a][b2].classList.remove('absorb-ra-in');
           }
-        });
+        };
+        try { window.requestAnimationFrame(dropIn); } catch (e2) {}
+        setTimeout(dropIn, 60);
         break;
       }
     } catch (e) { out.err = String(e); }
