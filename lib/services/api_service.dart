@@ -2198,7 +2198,9 @@ class ApiService {
   /// false only to deliberately un-finish: the server answers that by
   /// clearing the position to 0, same as the web UI's "mark as not finished",
   /// so [currentTime] is not sent in that case.
-  Future<void> updateProgress(
+  /// Returns false on a 5xx, where a retry could still land; network errors
+  /// still throw.
+  Future<bool> updateProgress(
     String itemId, {
     required double currentTime,
     required double duration,
@@ -2214,7 +2216,7 @@ class ApiService {
             body: jsonEncode({'isFinished': false}),
             timeout: const Duration(seconds: 10));
         debugPrint('[API] updateProgress unfinish $progressPath: ${unfinish.statusCode}');
-        return;
+        return unfinish.statusCode < 500;
       }
       final body = jsonEncode({
         'currentTime': currentTime,
@@ -2228,6 +2230,7 @@ class ApiService {
         body: body,
         timeout: const Duration(seconds: 10));
       debugPrint('[API] updateProgress response: ${resp.statusCode} ${resp.body}');
+      return resp.statusCode < 500;
     } catch (e) {
       debugPrint('[API] updateProgress error: $e');
       rethrow;
@@ -2430,7 +2433,9 @@ class ApiService {
   /// Same [isFinished] contract as [updateProgress]: null leaves the flag out
   /// so the server writes the percent, true marks finished, false un-finishes
   /// and lets the server clear the position to 0.
-  Future<void> updateEpisodeProgress(
+  /// Returns false when it never reached the server (network error or 5xx),
+  /// so a queued save can stay queued.
+  Future<bool> updateEpisodeProgress(
     String itemId,
     String episodeId, {
     required double currentTime,
@@ -2444,7 +2449,7 @@ class ApiService {
             body: jsonEncode({'isFinished': false}),
             timeout: const Duration(seconds: 10));
         debugPrint('[API] updateEpisodeProgress unfinish $episodeId: ${unfinish.statusCode}');
-        return;
+        return unfinish.statusCode < 500;
       }
       final resp = await _authPatch(url,
         body: jsonEncode({
@@ -2457,8 +2462,10 @@ class ApiService {
       if (resp.statusCode != 200) {
         debugPrint('[API] updateEpisodeProgress $episodeId: HTTP ${resp.statusCode}');
       }
+      return resp.statusCode < 500;
     } catch (e) {
       debugPrint('[API] updateEpisodeProgress error: $e');
+      return false;
     }
   }
 
