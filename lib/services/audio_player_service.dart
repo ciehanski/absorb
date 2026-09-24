@@ -2731,6 +2731,36 @@ class AudioPlayerService extends ChangeNotifier {
     );
   }
 
+  static const _startSeekStall = Duration(seconds: 7);
+  static const _maxStartSeekRetries = 2;
+
+  /// The first seek of a streamed start. When the server refuses the range
+  /// request the seek sits in buffering with nothing loaded, and a start that
+  /// awaits it never reaches play() - Play then does nothing until something
+  /// else seeks. A fresh seek unsticks it, so send one; if it still hasn't
+  /// landed, let the start carry on and the player keeps loading on its own.
+  Future<void> _seekForStart(double seconds, int generation) async {
+    for (var attempt = 0; ; attempt++) {
+      final landed = await _seekAbsolute(seconds)
+          .then((_) => true)
+          .timeout(_startSeekStall, onTimeout: () => false);
+      if (landed || _player == null || _startSuperseded(generation)) return;
+      final ahead = _player!.bufferedPosition - _player!.position;
+      if (ahead > const Duration(seconds: 2) ||
+          attempt >= _maxStartSeekRetries) {
+        debugPrint(
+          '[Player] Start seek to ${seconds.toStringAsFixed(1)}s still pending '
+          '(buffered ahead ${ahead.inMilliseconds}ms) - starting anyway',
+        );
+        return;
+      }
+      debugPrint(
+        '[Player] Start seek to ${seconds.toStringAsFixed(1)}s stalled with '
+        'nothing buffered - seeking again (${attempt + 1}/$_maxStartSeekRetries)',
+      );
+    }
+  }
+
   /// Seek to an absolute book position, handling multi-file offset conversion.
   Future<void> _seekAbsolute(double absoluteSeconds) async {
     if (_player == null) return;
@@ -4561,7 +4591,7 @@ class AudioPlayerService extends ChangeNotifier {
         speed: speed,
       );
       if (startTime > 0) {
-        await _seekAbsolute(startTime);
+        await _seekForStart(startTime, playbackGeneration);
       }
       clearSeekTarget();
 
@@ -5023,7 +5053,7 @@ class AudioPlayerService extends ChangeNotifier {
         speed: speed,
       );
       if (startTime > 0) {
-        await _seekAbsolute(startTime);
+        await _seekForStart(startTime, gen);
       }
       clearSeekTarget(); // Seek done; let position events flow immediately
 
@@ -5217,7 +5247,7 @@ class AudioPlayerService extends ChangeNotifier {
         _abandonStart(api, ownSessionId, 'transcode retry, after loading the source');
         return;
       }
-      if (startTime > 0) await _seekAbsolute(startTime);
+      if (startTime > 0) await _seekForStart(startTime, gen);
       clearSeekTarget();
       _subscribeTrackIndex();
       final initChapter = _initChapterInfo(startTime);
@@ -5535,6 +5565,7 @@ class AudioPlayerService extends ChangeNotifier {
       return false;
     }
     _pendingSessionUpgrade = null; // one-shot, success or not
+    var sourceReplaced = false;
     try {
       final api = _api!;
       final target = (seekToSeconds ?? position.inMilliseconds / 1000.0)
@@ -5594,12 +5625,17 @@ class AudioPlayerService extends ChangeNotifier {
       _resetPreBufferState();
       // Update index BEFORE loading so positionStream events use the right offset
       _currentTrackIndex = idx;
-      await _player!.setAudioSource(
-        source,
-        initialIndex: idx,
-        initialPosition: localPos,
-        itemId: _currentItemId,
-      );
+      sourceReplaced = true;
+      // A server that refuses connections left this loading for 82s with
+      // Play stuck behind it (GH #344).
+      await _player!
+          .setAudioSource(
+            source,
+            initialIndex: idx,
+            initialPosition: localPos,
+            itemId: _currentItemId,
+          )
+          .timeout(_swapLoadTimeout);
       _activeConcatSource = source;
       _currentBookTrackCount = trackSources.length;
       _subscribeTrackIndex();
@@ -5610,10 +5646,23 @@ class AudioPlayerService extends ChangeNotifier {
       );
       return true;
     } catch (e) {
-      debugPrint('[StreamUpgrade] Swap failed - keeping current source: $e');
+      if (!sourceReplaced) {
+        debugPrint('[StreamUpgrade] Swap failed - keeping current source: $e');
+        return false;
+      }
+      // The old source is already gone, so there's nothing to keep. Leave the
+      // player idle: the next play() sees that and starts the item over
+      // instead of pressing play on a half-loaded source.
+      debugPrint('[StreamUpgrade] Swap failed after replacing the source - resetting the player: $e');
+      try {
+        await _player?.stop();
+      } catch (_) {}
+      if (resumeAfter) unawaited(_attemptStreamRetry(e));
       return false;
     }
   }
+
+  static const _swapLoadTimeout = Duration(seconds: 15);
 
   /// Attempt to recover from a stream error by restarting playback from the
   /// last known position.  Tries up to [_maxStreamRetries] times with
@@ -6778,6 +6827,30 @@ class AudioPlayerService extends ChangeNotifier {
   /// seconds into playback is worse than starting where you paused.
   Future<void> play({String? logDetail, bool fromUi = false}) async {
     _pauseRequested = false;
+    // A second Play while the first is still moving the source onto a live
+    // session raced it: it pressed play on a half-loaded player and ExoPlayer
+    // failed with "Unexpected runtime error" (GH #344). The first one plays
+    // when it's ready, so let it.
+    final since = _playInFlightSince;
+    if (since != null && DateTime.now().difference(since) < _playInFlightCap) {
+      debugPrint(
+        '[Service] play() ignored - the play from '
+        '${DateTime.now().difference(since).inMilliseconds}ms ago is still getting ready',
+      );
+      return;
+    }
+    _playInFlightSince = DateTime.now();
+    try {
+      await _playNow(logDetail: logDetail, fromUi: fromUi);
+    } finally {
+      _playInFlightSince = null;
+    }
+  }
+
+  DateTime? _playInFlightSince;
+  static const _playInFlightCap = Duration(seconds: 30);
+
+  Future<void> _playNow({String? logDetail, bool fromUi = false}) async {
     debugPrint(
       '[Service] play() called — lastPause=${_lastPauseTime != null} fromUi=$fromUi',
     );
@@ -6850,6 +6923,10 @@ class AudioPlayerService extends ChangeNotifier {
     // Nothing is audible yet, so this is the moment to move it.
     if (_sourceSessionDead) {
       await _rebuildSourceOnDeadSession(resumeAfter: false);
+      if (_pauseRequested) {
+        debugPrint('[Service] Paused while the source was being rebuilt - not starting');
+        return;
+      }
     }
     // A seek while paused (user, or the socket adopting another device's
     // position) is the position the user expects to hear next - don't let
