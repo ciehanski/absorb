@@ -1559,6 +1559,35 @@ mixin _CoreMixin on ChangeNotifier, _StateMixin {
     }
   }
 
+  /// A start reads the position this phone saved, and only asks the server
+  /// for a couple of seconds before playing. On a slow server that loses,
+  /// and the book resumes from a spot another device has long moved past
+  /// even though its newer position already arrived here. Store it where
+  /// the start looks, but only when it's newer than this phone's own save.
+  Future<void> _storeNewerServerPosition(
+      String key, Map<String, dynamic> mp) async {
+    if (mp['isFinished'] == true) return;
+    final serverTime = (mp['currentTime'] as num?)?.toDouble();
+    final serverUpd = (mp['lastUpdate'] as num?)?.toInt() ?? 0;
+    if (serverTime == null || serverUpd <= 0) return;
+    final sync = ProgressSyncService();
+    if (serverUpd <= await sync.getSavedTimestamp(key)) return;
+    final local = await sync.getLocal(key);
+    final localTime = (local?['currentTime'] as num?)?.toDouble();
+    if (localTime != null && (localTime - serverTime).abs() < 1.0) return;
+    final duration = (mp['duration'] as num?)?.toDouble() ??
+        (local?['duration'] as num?)?.toDouble() ??
+        0;
+    await sync.cacheServerProgress(
+      itemId: key,
+      currentTime: serverTime,
+      duration: duration,
+      overridePending: true,
+    );
+    debugPrint('[Sync] Stored newer server position for $key: '
+        '${localTime?.toStringAsFixed(1) ?? '-'}s -> ${serverTime.toStringAsFixed(1)}s');
+  }
+
   void _onRemoteProgressUpdated(Map<String, dynamic> mp) {
     final itemId = mp['libraryItemId'] as String?;
     final episodeId = mp['episodeId'] as String?;
@@ -1569,6 +1598,9 @@ mixin _CoreMixin on ChangeNotifier, _StateMixin {
     final playingKey = player.currentEpisodeId != null
         ? '${player.currentItemId}-${player.currentEpisodeId}'
         : player.currentItemId;
+    if (!(key == playingKey && player.isPlaying)) {
+      unawaited(_storeNewerServerPosition(key, mp));
+    }
     if (key == playingKey && player.hasBook) {
       if (mp['isFinished'] == true && !_resetItems.contains(key)) {
         // Re-reading a finished book: the server keeps isFinished=true and
