@@ -80,6 +80,7 @@ class AudioPlayerHandler extends BaseAudioHandler with SeekHandler {
   // statics from the vendored audio_service Java side via MainActivity.kt.
   // Strip the call sites + the channel once #243 is closed.
   static const _absorbDiagChannel = MethodChannel('com.absorb.audio_diag');
+  static bool _diagMissingLogged = false;
 
   /// Fetch the raw diag snapshot from the Java side. Returns null on iOS or
   /// when the channel is unavailable. Used by click() to also read the
@@ -91,6 +92,10 @@ class AudioPlayerHandler extends BaseAudioHandler with SeekHandler {
         'snapshot',
       );
     } on MissingPluginException {
+      if (!_diagMissingLogged) {
+        _diagMissingLogged = true;
+        debugPrint('[AbsorbDiag] snapshot channel missing on this engine');
+      }
       return null;
     } catch (e) {
       debugPrint('[AbsorbDiag] snapshot failed: $e');
@@ -493,7 +498,7 @@ class AudioPlayerHandler extends BaseAudioHandler with SeekHandler {
     // the phone speaker after the user unplugs or AA tears down.
     if (_noisyPauseAt != null) {
       final elapsed = DateTime.now().difference(_noisyPauseAt!).inMilliseconds;
-      if (elapsed < 5000) {
+      if (elapsed < _noisyGuardMs) {
         debugPrint(
           '[Handler] Ignoring phantom play (${elapsed}ms after platform pause)',
         );
@@ -542,6 +547,7 @@ class AudioPlayerHandler extends BaseAudioHandler with SeekHandler {
       final btJustWent = lastBt != null && !pauseEntryBt;
       if (btJustWent) {
         _noisyPauseAt = DateTime.now();
+        _noisyGuardMs = 5000;
       }
     }
     if (_service != null) {
@@ -661,6 +667,7 @@ class AudioPlayerHandler extends BaseAudioHandler with SeekHandler {
   int _clickCount = 0;
   DateTime? _hardwareButtonTime; // cooldown after hardware next/prev
   DateTime? _noisyPauseAt; // suppress clicks for a window after BT disconnect
+  int _noisyGuardMs = 5000;
   // Keycode of the media button event that arrived at the most recent click().
   // Read from the [AbsorbDiag] snapshot at click arrival and consumed by the
   // 400ms resolver to honor PAUSE/PLAY intent instead of blindly toggling -
@@ -792,7 +799,7 @@ class AudioPlayerHandler extends BaseAudioHandler with SeekHandler {
     // Suppress phantom play commands within 5s of a BT/auto disconnect
     if (_noisyPauseAt != null) {
       final elapsed = DateTime.now().difference(_noisyPauseAt!).inMilliseconds;
-      if (elapsed < 5000) {
+      if (elapsed < _noisyGuardMs) {
         debugPrint(
           '[Handler] Ignoring phantom click (${elapsed}ms after noisy pause)',
         );
@@ -822,6 +829,7 @@ class AudioPlayerHandler extends BaseAudioHandler with SeekHandler {
         // Re-arm the 5s noisy guard so a follow-up click in the same
         // burst is also ignored, matching the BT-disconnect suppression flow.
         _noisyPauseAt = DateTime.now();
+        _noisyGuardMs = 5000;
         return;
       }
     }
@@ -999,9 +1007,11 @@ class AudioPlayerHandler extends BaseAudioHandler with SeekHandler {
   }
 
   /// Cancel any pending media-button click so a BT disconnect doesn't
-  /// accidentally resume playback on the phone speaker.
-  void cancelPendingClick() {
+  /// accidentally resume playback on the phone speaker. [guardMs] is how long
+  /// a play that follows is treated as the platform echoing a resume.
+  void cancelPendingClick({int guardMs = 5000}) {
     _noisyPauseAt = DateTime.now();
+    _noisyGuardMs = guardMs;
     if (_clickTimer?.isActive ?? false) {
       debugPrint('[Handler] Cancelling pending click (noisy pause)');
       _clickTimer!.cancel();
@@ -3220,12 +3230,19 @@ class AudioPlayerService extends ChangeNotifier {
                 )
                 .toSet();
             if (lost.isEmpty) return;
-            // Settle re-check: some devices briefly drop and re-add a route when
-            // playback starts. Only pause if the output is genuinely gone.
-            await Future.delayed(const Duration(milliseconds: 500));
+            debugPrint(
+              '[AudioSession] Output route removed: '
+              '${lost.map((d) => '${d.type.name} "${d.name}"').join(', ')}',
+            );
+            // Settle re-check: some devices drop and re-add a route when
+            // playback starts or the link hiccups. Only pause if it stays gone.
+            await Future.delayed(const Duration(seconds: 2));
             if (!service.isPlaying) return;
             final current = await session.getDevices(includeInputs: false);
-            if (!lost.any((d) => !current.contains(d))) return;
+            if (!lost.any((d) => !current.contains(d))) {
+              debugPrint('[AudioSession] Output route came back - keeping playback');
+              return;
+            }
             // Android Auto carries the audio itself, over USB or WiFi. The
             // Bluetooth link to the head unit or a helmet runs beside it and
             // can drop and come back every few minutes without the audio ever
@@ -3243,7 +3260,10 @@ class AudioPlayerService extends ChangeNotifier {
             );
             _noisyPause = true;
             service._wasPlayingBeforeInterrupt = false;
-            _handler?.cancelPendingClick();
+            // Short guard: this pause is ours, not a platform disconnect, so
+            // a Play a couple of seconds later is the user. The full 5s threw
+            // those away and Play looked dead (#369).
+            _handler?.cancelPendingClick(guardMs: 1500);
             if (service.isPlaying) await service.pause();
           } catch (e) {
             debugPrint('[AudioSession] Device-change handler error: $e');

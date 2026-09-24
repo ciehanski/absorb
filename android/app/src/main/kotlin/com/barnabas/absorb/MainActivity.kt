@@ -161,14 +161,6 @@ class MainActivity : AudioServiceActivity() {
                 }
             }
 
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.absorb.audio_diag")
-            .setMethodCallHandler { call, result ->
-                when (call.method) {
-                    "snapshot" -> result.success(AudioService.getDiagnosticSnapshot())
-                    else -> result.notImplemented()
-                }
-            }
-
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.absorb.update")
             .setMethodCallHandler { call, result ->
                 when (call.method) {
