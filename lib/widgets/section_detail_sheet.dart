@@ -254,8 +254,8 @@ class _SectionDetailSheetState extends State<SectionDetailSheet> {
           .copyWith(bottom: 40),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: coverGridCount(context),
-        mainAxisSpacing: 12,
-        crossAxisSpacing: 12,
+        mainAxisSpacing: 10,
+        crossAxisSpacing: 10,
         childAspectRatio: childAspectRatio,
       ),
       itemCount: widget.entities.length,

@@ -256,7 +256,7 @@ class _SeriesBooksSheetState extends State<SeriesBooksSheet> {
     const groupHeaderExtent = 68.0;
     final columns = coverGridCount(context);
     final width = context.size?.width ?? MediaQuery.sizeOf(context).width;
-    final gridRowExtent = ((width - 32 - 8 * (columns - 1)) / columns) / 0.65 + 8;
+    final gridRowExtent = ((width - 32 - 10 * (columns - 1)) / columns) / 0.65 + 10;
 
     if (!_collapseSeries) {
       final index = _books.indexWhere((b) => b['id'] == bookId);

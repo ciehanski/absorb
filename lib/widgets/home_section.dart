@@ -9,6 +9,7 @@ import 'book_card.dart';
 import 'author_card.dart';
 import 'series_card.dart';
 import 'episode_list_sheet.dart';
+import 'books_sheet_shared.dart' show coverSizeScale;
 
 class HomeSection extends StatelessWidget {
   final String title;
@@ -66,15 +67,31 @@ class HomeSection extends StatelessWidget {
     final effectiveEpisode = isEpisodeSection || hasEpisodeEntities;
 
     final bool isRectCover = coverAspectRatio < 1.0;
-    final double cardWidth =
-        isContinueListening ? 300 : (isAuthorSection ? 120 : 140);
+    // Book and series covers follow the cover size setting like the library
+    // grid does; the wide continue card, authors and episodes keep their size.
+    final bool coverCard =
+        !isContinueListening && !effectiveEpisode && !isAuthorSection;
+    final double cardWidth = isContinueListening
+        ? 300
+        : isAuthorSection
+            ? 120
+            : coverCard
+                ? 140 * coverSizeScale()
+                : 140;
     // Book cards grow by a line when subtitles are on; author and episode
     // cards have no subtitle to show, so they stay as they are.
     final bool subtitleLine =
         showSubtitles && !isContinueListening && !effectiveEpisode && !isAuthorSection;
     final double cardHeight =
-        (isContinueListening ? 120 : effectiveEpisode ? 200 : (isAuthorSection ? 170 : (isRectCover ? 260 : 200)))
-            + (subtitleLine ? 18 : 0);
+        (isContinueListening
+                ? 120
+                : effectiveEpisode
+                    ? 200
+                    : isAuthorSection
+                        ? 170
+                        : (isRectCover ? 260 : 200) +
+                            (cardWidth - 140) / coverAspectRatio) +
+            (subtitleLine ? 18 : 0);
 
     return Padding(
       padding: const EdgeInsets.only(top: 24),

@@ -33,7 +33,7 @@ import 'admin_podcasts_screen.dart';
 import 'app_shell.dart';
 import 'upcoming_releases_screen.dart';
 import '../widgets/audible_series_sheet.dart' show showAudibleRegionPicker;
-import '../widgets/books_sheet_shared.dart' show coverGridCount;
+import '../widgets/books_sheet_shared.dart' show coverGridCount, CoverGridScope;
 import '../widgets/offline_status_icon.dart';
 import '../widgets/rmab_config_sheet.dart'
     show kRmabBaseUrlKey, kRmabApiTokenKey;
@@ -3451,15 +3451,18 @@ class LibraryScreenState extends State<LibraryScreen>
     final effectiveTab = _currentTab;
     Widget headerFor(int i) =>
         _buildHeaderSliver(context, useSharedFocus: i == effectiveTab);
-    return IndexedStack(
-      index: effectiveTab,
-      children: [
-        _buildGrid(headerFor(0)),
-        _buildSeriesGrid(headerFor(1)),
-        _buildAuthorsGrid(headerFor(2)),
-        _buildNarratorsGrid(headerFor(3)),
-        _buildListsGrid(headerFor(4)),
-      ],
+    // Beside a navigation rail the grid gets less than the screen's width.
+    return CoverGridScope(
+      child: IndexedStack(
+        index: effectiveTab,
+        children: [
+          _buildGrid(headerFor(0)),
+          _buildSeriesGrid(headerFor(1)),
+          _buildAuthorsGrid(headerFor(2)),
+          _buildNarratorsGrid(headerFor(3)),
+          _buildListsGrid(headerFor(4)),
+        ],
+      ),
     );
   }
 
