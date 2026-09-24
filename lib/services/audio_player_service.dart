@@ -5379,14 +5379,23 @@ class AudioPlayerService extends ChangeNotifier {
         effectiveCoverUrl = coverUrl;
       }
     } else {
-      effectiveCoverUrl = 'content://$_coverAuthority/cover/$itemId';
+      final localCover = DownloadService().getInfo(itemId).localCoverPath;
+      final streamed = localCover == null || localCover.isEmpty;
+      // Some re-pushes (foreground, speed, settings) pass the episode's
+      // item-episode key. A downloaded episode keeps its cover under that
+      // key, but the server only has covers under the item id, so a streamed
+      // episode asked for that key got the placeholder note (GH #401).
+      final coverId = streamed &&
+              _currentEpisodeId != null &&
+              itemId == '$_currentItemId-$_currentEpisodeId'
+          ? _currentItemId!
+          : itemId;
+      effectiveCoverUrl = 'content://$_coverAuthority/cover/$coverId';
       if (coverCacheBust != null) effectiveCoverUrl += '?cb=$coverCacheBust';
       // Streamed cover (no local file) won't be cached on first play - schedule
       // one cache-busted re-push so the art shows up the first time too.
-      final localCover = DownloadService().getInfo(itemId).localCoverPath;
-      final streamed = localCover == null || localCover.isEmpty;
-      if (streamed && coverCacheBust == null && _coverRepushItem != itemId) {
-        _coverRepushItem = itemId;
+      if (streamed && coverCacheBust == null && _coverRepushItem != coverId) {
+        _coverRepushItem = coverId;
         _scheduleStreamedCoverRepush(itemId);
       }
     }
