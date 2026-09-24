@@ -351,6 +351,38 @@
       }
     }
   },
+  "downloadFailedMissingFile": "Couldn't download \"{title}\" - one of its files isn't on the server. A library scan may fix it.",
+  "@downloadFailedMissingFile": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "downloadFailedNoSpace": "Couldn't download \"{title}\" - not enough storage space",
+  "@downloadFailedNoSpace": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "downloadFailedPermission": "Couldn't download \"{title}\" - check the download location in Settings",
+  "@downloadFailedPermission": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "downloadFailedGeneric": "Couldn't download \"{title}\"",
+  "@downloadFailedGeneric": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
   "downloadsSelectedCount": "{count} selected",
   "@downloadsSelectedCount": {
     "placeholders": {

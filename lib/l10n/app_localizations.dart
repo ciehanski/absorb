@@ -1480,6 +1480,30 @@ abstract class AppLocalizations {
   /// **'\"{title}\" removed'**
   String downloadsRemovedTitle(String title);
 
+  /// No description provided for @downloadFailedMissingFile.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t download \"{title}\" - one of its files isn\'t on the server. A library scan may fix it.'**
+  String downloadFailedMissingFile(String title);
+
+  /// No description provided for @downloadFailedNoSpace.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t download \"{title}\" - not enough storage space'**
+  String downloadFailedNoSpace(String title);
+
+  /// No description provided for @downloadFailedPermission.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t download \"{title}\" - check the download location in Settings'**
+  String downloadFailedPermission(String title);
+
+  /// No description provided for @downloadFailedGeneric.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t download \"{title}\"'**
+  String downloadFailedGeneric(String title);
+
   /// No description provided for @downloadsSelectedCount.
   ///
   /// In en, this message translates to:

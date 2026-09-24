@@ -744,6 +744,26 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String downloadFailedMissingFile(String title) {
+    return 'Couldn\'t download \"$title\" - one of its files isn\'t on the server. A library scan may fix it.';
+  }
+
+  @override
+  String downloadFailedNoSpace(String title) {
+    return 'Couldn\'t download \"$title\" - not enough storage space';
+  }
+
+  @override
+  String downloadFailedPermission(String title) {
+    return 'Couldn\'t download \"$title\" - check the download location in Settings';
+  }
+
+  @override
+  String downloadFailedGeneric(String title) {
+    return 'Couldn\'t download \"$title\"';
+  }
+
+  @override
   String downloadsSelectedCount(int count) {
     return '已选择 $count 项';
   }

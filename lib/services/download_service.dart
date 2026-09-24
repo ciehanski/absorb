@@ -12,6 +12,7 @@ import 'package:background_downloader/background_downloader.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import '../l10n/app_localizations.dart';
 import '../main.dart' show rootNavigatorKey;
+import '../widgets/overlay_toast.dart';
 import 'api_service.dart';
 import 'audio_player_service.dart';
 import 'ebook_cache.dart';
@@ -2327,8 +2328,35 @@ class DownloadService extends ChangeNotifier {
     await _deleteDbRecords(itemId, p?.trackCount ?? 0);
     _cancelledIds.remove(itemId);
     debugPrint('[Download] Failed "$t": $msg (${cause ?? taskException?.description})');
+    _toastFailure(t, cause, taskException, responseCode);
     notifyListeners();
     unawaited(_processQueue());
+  }
+
+  /// A failed book used to just drop back to the download button, so a book
+  /// whose server folder holds a file the server 404s looked like it never
+  /// started (GH #310). Say what went wrong.
+  void _toastFailure(
+      String title, Object? cause, TaskException? te, int? code) {
+    final navigator = rootNavigatorKey.currentState;
+    if (navigator == null) return;
+    final l = AppLocalizations.of(navigator.context);
+    if (l == null) return;
+    final s = '${cause ?? ''} ${te?.description ?? ''}'.toLowerCase();
+    final String message;
+    if (code == 404) {
+      message = l.downloadFailedMissingFile(title);
+    } else if (s.contains('no space') || s.contains('enospc')) {
+      message = l.downloadFailedNoSpace(title);
+    } else if (s.contains('permission') ||
+        s.contains('not permitted') ||
+        code == 403) {
+      message = l.downloadFailedPermission(title);
+    } else {
+      message = l.downloadFailedGeneric(title);
+    }
+    showNavigatorOverlayToast(navigator, message,
+        icon: Icons.error_outline_rounded);
   }
 
   Future<void> _handleCanceled(String itemId) async {
